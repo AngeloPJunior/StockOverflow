@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Stock Overflow</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Arial;margin:24px;max-width:980px}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    form, table{width:100%;margin:12px 0}
+    input, select, button{padding:8px;margin:4px}
+    table{border-collapse:collapse}
+    th,td{border:1px solid #ddd;padding:8px}
+    th{background:#f6f6f6}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Stock Overflow — HQs & Livros</h1>
+    <span><a href="/health" target="_blank">/health</a></span>
+  </header>
+
+  <section>
+    <h2>Novo Produto</h2>
+    <form id="form-produto">
+      <input name="titulo" placeholder="Título" required />
+      <input name="autor"  placeholder="Autor" />
+      <input name="editora" placeholder="Editora" />
+      <input name="genero"  placeholder="Gênero" />
+      <select name="tipo">
+        <option value="HQ">HQ</option>
+        <option value="LIVRO">LIVRO</option>
+      </select>
+      <input name="idioma" placeholder="Idioma" />
+      <input name="ano" type="number" placeholder="Ano" />
+      <input name="edicao" placeholder="Edição" />
+      <input name="codigo" placeholder="Código/ISBN" />
+      <input name="quantidade" type="number" placeholder="Qtd inicial" value="0" />
+      <button>Salvar</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Produtos</h2>
+    <input id="busca" placeholder="Buscar por título..." />
+    <button id="btn-buscar">Buscar</button>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Título</th><th>Autor</th><th>Tipo</th><th>Qtd</th></tr>
+      </thead>
+      <tbody id="lista"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Movimentação</h2>
+    <form id="form-mov">
+      <input name="produtoId" type="number" placeholder="ID do produto" required />
+      <select name="tipo">
+        <option value="ENTRADA">ENTRADA</option>
+        <option value="SAIDA">SAÍDA</option>
+      </select>
+      <input name="quantidade" type="number" placeholder="Quantidade" required />
+      <input name="observacao" placeholder="Observação" />
+      <button>Registrar</button>
+    </form>
+  </section>
+
+  <script>
+    const api = (path, opts={}) => fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
+
+    async function carregar(q=''){
+      const r = await api(`/produtos?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      const items = Array.isArray(data) ? data : data.items || [];
+      document.getElementById('lista').innerHTML = items.map(p =>
+        `<tr><td>${p.id}</td><td>${p.titulo}</td><td>${p.autor||''}</td><td>${p.tipo}</td><td>${p.quantidade}</td></tr>`
+      ).join('');
+    }
+
+    document.getElementById('btn-buscar').onclick = () => {
+      const q = document.getElementById('busca').value || '';
+      carregar(q);
+    };
+
+    document.getElementById('form-produto').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const body = Object.fromEntries(f.entries());
+      body.quantidade = Number(body.quantidade||0);
+      await api('/produtos', { method:'POST', body: JSON.stringify(body) });
+      e.target.reset();
+      carregar();
+    };
+
+    document.getElementById('form-mov').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const body = Object.fromEntries(f.entries());
+      body.produtoId = Number(body.produtoId);
+      body.quantidade = Number(body.quantidade);
+      const r = await api('/movimentacoes', { method:'POST', body: JSON.stringify(body) });
+      const j = await r.json();
+      if(!r.ok){ alert(j.error||'Erro'); return; }
+      alert(`Mov ok. Saldo atual: ${j.saldoAtual}`);
+      e.target.reset();
+      carregar();
+    };
+
+    carregar();
+  </script>
+</body>
+</html>
