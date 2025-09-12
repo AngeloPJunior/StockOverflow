@@ -120,7 +120,7 @@ sudo apt -y install nodejs git make g++ python3 mysql-client
 
 sudo mkdir -p /opt/stockoverflow
 cd /opt/stockoverflow
-git clone https://github.com/SEU_USUARIO/StockOverflow.git .
+git clone https://github.com/AngeloPJunior/StockOverflow.git .
 cp ops/env/.env.prod.example .env
 
 # configure .env:
