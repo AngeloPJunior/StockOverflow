@@ -73,11 +73,45 @@ npm start
 }
 ```
 
-## 4) Próximos passos (opcional)
-- Autenticação (JWT)
-- Paginação/filtros em `/produtos`
-- Relatórios
-- Dockerfile e docker-compose
-- Testes automatizados
+## Deploy em 3 VMs
+Arquitetura
+
+VM1 — Proxy (NGINX)
+IP: 192.168.47.128
+Responsável por expor a aplicação na porta 80 e encaminhar para a VM2.
+Apenas esta VM é acessível externamente.
+
+VM2 — Aplicação (Node.js + Express + Sequelize)
+IP: 192.168.47.129
+Roda a API + frontend estático na porta 3000.
+Só acessível pela VM1 (rede interna).
+
+VM3 — Banco de Dados (MySQL)
+IP: 192.168.47.130
+Roda MySQL 8, porta 3306.
+Só aceita conexões da VM2.
+
+Fluxo:
+Usuário → VM1:80 (NGINX) → VM2:3000 (Node) → VM3:3306 (MySQL)
+
+##Passos de Deploy
+VM3 (MySQL)
+```json
+{
+  sudo apt update && sudo apt -y install mysql-server
+sudo sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+sudo systemctl restart mysql
+
+sudo mysql <<SQL
+CREATE DATABASE IF NOT EXISTS stock_overflow
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+DROP USER IF EXISTS 'stock'@'192.168.47.129';
+CREATE USER 'stock'@'192.168.47.129' IDENTIFIED BY 'TroqueEstaSenha!';
+GRANT ALL PRIVILEGES ON stock_overflow.* TO 'stock'@'192.168.47.129';
+FLUSH PRIVILEGES;
+SQL
+
+}
 ```
 
