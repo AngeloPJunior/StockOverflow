@@ -95,10 +95,9 @@ Fluxo:
 Usuário → VM1:80 (NGINX) → VM2:3000 (Node) → VM3:3306 (MySQL)
 
 ##Passos de Deploy
-VM3 (MySQL)
-```json
-{
-  sudo apt update && sudo apt -y install mysql-server
+##VM3 (MySQL)
+```bash
+sudo apt update && sudo apt -y install mysql-server
 sudo sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
 sudo systemctl restart mysql
 
@@ -111,7 +110,115 @@ CREATE USER 'stock'@'192.168.47.129' IDENTIFIED BY 'TroqueEstaSenha!';
 GRANT ALL PRIVILEGES ON stock_overflow.* TO 'stock'@'192.168.47.129';
 FLUSH PRIVILEGES;
 SQL
-
-}
 ```
 
+##VM2 (App)
+```bash
+sudo apt update
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt -y install nodejs git make g++ python3 mysql-client
+
+sudo mkdir -p /opt/stockoverflow
+cd /opt/stockoverflow
+git clone https://github.com/SEU_USUARIO/StockOverflow.git .
+cp ops/env/.env.prod.example .env
+
+# configure .env:
+# DB_HOST=192.168.47.130
+# DB_USER=stock
+# DB_PASS=TroqueEstaSenha!
+# DB_NAME=stock_overflow
+# JWT_SECRET=troque-por-uma-senha-bem-forte
+
+npm install
+npm run db:sync
+npm run db:seed
+npm run db:seed:user
+```
+Criar serviço systemd:
+```bash
+sudo tee /etc/systemd/system/stockoverflow.service >/dev/null <<UNIT
+[Unit]
+Description=Stock Overflow API (Node)
+After=network.target
+
+[Service]
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/stockoverflow/.env
+WorkingDirectory=/opt/stockoverflow
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+User=angelo
+Group=angelo
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now stockoverflow
+systemctl status stockoverflow --no-pager
+```
+
+##VM1 (NGINX Proxy)
+```bash
+sudo apt update && sudo apt -y install nginx
+
+sudo tee /etc/nginx/sites-available/stockoverflow >/dev/null <<NGINX
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://192.168.47.129:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX
+
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -s /etc/nginx/sites-available/stockoverflow /etc/nginx/sites-enabled/stockoverflow
+sudo nginx -t && sudo systemctl reload nginx
+```
+Teste:
+```bash
+curl -i http://localhost/health
+```
+
+##Testes finais
+
+Acesse no navegador do host:
+ http://192.168.47.128/
+
+Login padrão:
+
+email: angelo@stock.local
+
+senha: 123
+
+Testar:
+
+cadastrar produtos,
+
+registrar movimentações,
+
+ver resumo do estoque,
+
+checar /health.
+
+##Segurança
+
+Banco não acessível de fora, só VM2 → VM3.
+
+Aplicação não acessível de fora, só VM1 → VM2.
+
+Apenas VM1 exposta ao usuário (porta 80).
+
+.env com credenciais fora do GitHub.
+
+Usuário MySQL restrito a 1 IP (192.168.47.129).
+
+JWT_SECRET definido para autenticação segura.
