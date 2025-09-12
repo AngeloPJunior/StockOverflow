@@ -94,8 +94,8 @@ Só aceita conexões da VM2.
 Fluxo:
 Usuário → VM1:80 (NGINX) → VM2:3000 (Node) → VM3:3306 (MySQL)
 
-##Passos de Deploy
-##VM3 (MySQL)
+## Passos de Deploy
+## VM3 (MySQL)
 ```bash
 sudo apt update && sudo apt -y install mysql-server
 sudo sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
@@ -112,7 +112,7 @@ FLUSH PRIVILEGES;
 SQL
 ```
 
-##VM2 (App)
+## VM2 (App)
 ```bash
 sudo apt update
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -160,7 +160,7 @@ sudo systemctl enable --now stockoverflow
 systemctl status stockoverflow --no-pager
 ```
 
-##VM1 (NGINX Proxy)
+## VM1 (NGINX Proxy)
 ```bash
 sudo apt update && sudo apt -y install nginx
 
@@ -188,7 +188,7 @@ Teste:
 curl -i http://localhost/health
 ```
 
-##Testes finais
+## Testes finais
 
 Acesse no navegador do host:
  http://192.168.47.128/
@@ -209,7 +209,7 @@ ver resumo do estoque,
 
 checar /health.
 
-##Segurança
+## Segurança
 
 Banco não acessível de fora, só VM2 → VM3.
 
