@@ -5,25 +5,23 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
-    "db:sync": "node src/db/sync.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "mysql2": "^3.9.7",
-    "sequelize": "^6.37.3",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
-  },
-
-  "scripts": {
-  "dev": "node --watch src/server.js",
   "start": "node src/server.js",
   "db:sync": "node src/db/sync.js",
-  "db:seed": "node src/db/seed.js"
-}
+  "db:seed": "node src/db/seed.js",
+  "db:seed:user": "node src/db/seed_user.js",
+  "db:dump": "mysqldump -h %DB_HOST% -u %DB_USER% -p%DB_PASS% %DB_NAME% > dump.sql",
+  "db:restore": "mysql -h %DB_HOST% -u %DB_USER% -p%DB_PASS% %DB_NAME% < dump.sql"
+},
 
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.9.7",
+    "sequelize": "^6.37.3"
+  }
 }

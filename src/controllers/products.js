@@ -1,31 +1,24 @@
 
 import { Product } from '../db/index.js';
 import { Op } from 'sequelize';
-
-export const list = async (req, res, next) => {
+ 
+  
+  export const list = async (req, res, next) => {
   try {
-    const { q, page = 1, limit = 20 } = req.query;
+    const { q, tipo, page = 1, limit = 20 } = req.query;
+
     const where = {};
-    if (q) {
-      where.titulo = { [Op.like]: `%${q}%` };
-    }
+    if (q)   where.titulo = { [Op.like]: `%${q}%` };
+    if (tipo && ['HQ','LIVRO'].includes(tipo)) where.tipo = tipo;
+
     const take = Math.min(Number(limit) || 20, 100);
     const skip = (Number(page) - 1) * take;
 
     const { rows, count } = await Product.findAndCountAll({
-      where,
-      order: [['id', 'DESC']],
-      limit: take,
-      offset: skip,
+      where, order: [['id', 'DESC']], limit: take, offset: skip
     });
 
-    res.json({
-      items: rows,
-      page: Number(page),
-      limit: take,
-      total: count,
-      pages: Math.ceil(count / take),
-    });
+    res.json({ items: rows, page: Number(page), limit: take, total: count, pages: Math.ceil(count / take) });
   } catch (e) { next(e); }
 };
 

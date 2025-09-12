@@ -1,6 +1,14 @@
-# Stock Overflow - API (MVP)
+npm insta# Stock Overflow - API (MVP)
 
-API simples (Express + Sequelize + MySQL) para gerenciar estoque de HQs e Livros.
+API simples (Express + Sequelize + MySQL) para gerenciar estoque de HQs e Livros.# Stock Overflow — HQs & Livros
+
+API + front simples para controle de estoque (Node.js, Express, Sequelize, MySQL).
+
+## Como rodar localmente
+1. Crie `.env` na raiz (baseado em `.env.example`).
+2. Instale deps:
+   ```bash
+   npm install
 
 ## 1) Requisitos
 - Node.js 18+

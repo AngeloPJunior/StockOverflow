@@ -1,5 +1,7 @@
 import { Sequelize } from 'sequelize';
-import 'dotenv/config';
+import ProductModel from '../models/Product.js';
+import MovementModel from '../models/Movement.js';
+import UserModel from '../models/User.js';
 
 export const sequelize = new Sequelize(
   process.env.DB_NAME,
@@ -7,19 +9,19 @@ export const sequelize = new Sequelize(
   process.env.DB_PASS,
   {
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
+    port: process.env.DB_PORT,
     dialect: 'mysql',
-    logging: false
+    logging: false,
   }
 );
 
-// Import dos models
-import ProductModel from '../models/Product.js';
-import MovementModel from '../models/Movement.js';
-
+// Models
 export const Product = ProductModel(sequelize);
 export const Movement = MovementModel(sequelize);
+export const User = UserModel(sequelize);
 
-// Associações
-Product.hasMany(Movement, { foreignKey: 'produtoId', as: 'movimentos' });
-Movement.belongsTo(Product, { foreignKey: 'produtoId', as: 'produto' });
+// Relacionamentos
+Movement.belongsTo(Product, { foreignKey: 'produtoId' });
+Product.hasMany(Movement, { foreignKey: 'produtoId' });
+
+export default sequelize;
