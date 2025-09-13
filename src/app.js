@@ -3,52 +3,55 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-import reportsRouter from './routes/reports.js';  
 import productsRouter from './routes/products.js';
 import movementsRouter from './routes/movements.js';
-import authRouter from './routes/auth.js'; 
-import sequelize from './db/index.js';
+import reportsRouter from './routes/reports.js';
+import authRouter from './routes/auth.js';
 
+import { sequelize } from './db/index.js';
 import { errorHandler, notFound } from './middlewares/error.js';
 
-const app = express(); 
-app.use(express.static('public'));
+const app = express();
 
+// segurança & logs
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
 app.use(morgan('dev'));
-app.use('/relatorios', reportsRouter);
+app.use(express.json());
+app.use(express.static('public'));
 
-app.get('/health', async (_req, res) => {
+// healthchecks
+app.get('/health', (_req, res) => res.json({ ok: true, db: 'unknown' }));
+app.get('/ready', async (_req, res) => {
   try {
-    await sequelize.authenticate(); // pinga o MySQL
-    res.json({ ok: true, db: 'up' });
-  } catch {
-    res.status(503).json({ ok: false, db: 'down' });
+    await sequelize.authenticate();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'db down' });
   }
 });
 
-
-
+// home
 app.get('/', (_req, res) => {
   res.send(`
     <h1>Stock Overflow API</h1>
-    <p>Bem-vindo! Endpoints disponíveis:</p>
     <ul>
       <li><a href="/health">/health</a></li>
+      <li><a href="/ready">/ready</a></li>
       <li><a href="/produtos">/produtos</a></li>
       <li><a href="/movimentacoes">/movimentacoes</a></li>
+      <li><a href="/relatorios/estoque">/relatorios/estoque</a></li>
     </ul>
   `);
 });
 
-
-app.use('/auth', authRouter);                    // << REGISTRAR AQUI
+// rotas
+app.use('/auth', authRouter);
 app.use('/produtos', productsRouter);
 app.use('/movimentacoes', movementsRouter);
 app.use('/relatorios', reportsRouter);
 
+// 404 + handler
 app.use(notFound);
 app.use(errorHandler);
 
