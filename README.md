@@ -5,19 +5,19 @@ API + frontend simples para controle de estoque (Node.js, Express, Sequelize, My
 ## Arquitetura de Deploy (3 VMs)
 
 - **VM1 — Proxy (NGINX)**  
-  IP: 192.168.47.128  
+  IP: `192.168.47.128`  
   Expõe a aplicação na porta 80 e encaminha para a VM2.  
 
 - **VM2 — Aplicação (Node.js + Express)**  
-  IP: 192.168.47.129  
+  IP: `192.168.47.129`  
   Roda a API + frontend estático na porta 3000.  
 
 - **VM3 — Banco de Dados (MySQL)**  
-  IP: 192.168.47.130  
+  IP: `192.168.47.130`  
   Roda MySQL 8, porta 3306.  
 
 Fluxo:  
-Usuário → VM1:80 (NGINX) → VM2:3000 (Node.js) → VM3:3306 (MySQL)
+Usuário → **VM1:80 (NGINX)** → **VM2:3000 (Node.js)** → **VM3:3306 (MySQL)**
 
 ---
 
@@ -71,7 +71,7 @@ nohup npm start > /tmp/api.log 2>&1 &
 sleep 2
 ```
 
-Testes locais:
+**Testes locais:**
 ```bash
 curl -s http://127.0.0.1:3000/health
 curl -s http://127.0.0.1:3000/produtos | head
@@ -121,7 +121,7 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-Testes:
+**Testes no proxy:**
 ```bash
 curl -s http://127.0.0.1/health
 curl -s http://127.0.0.1/produtos | head
@@ -139,13 +139,13 @@ curl -s http://192.168.47.128/auth/login   -H 'Content-Type: application/json'  
 ```
 
 No navegador:  
-👉 http://192.168.47.128/
+👉 [http://192.168.47.128/](http://192.168.47.128/)
 
 ---
 
 ## Credenciais padrão
-- email: `admin@stock.local`  
-- senha: `admin123`
+- **email:** `admin@stock.local`  
+- **senha:** `admin123`
 
 ---
 
