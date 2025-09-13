@@ -1,60 +1,39 @@
+// src/app.js
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-app.use(express.static('public'));
-
+// Rotas (ajuste os caminhos se seu projeto usar nomes diferentes)
 import productsRouter from './routes/products.js';
 import movementsRouter from './routes/movements.js';
 import reportsRouter from './routes/reports.js';
 import authRouter from './routes/auth.js';
 
-import { sequelize } from './db/index.js';
-import { errorHandler, notFound } from './middlewares/error.js';
-
 const app = express();
 
-// segurança & logs
+// middlewares base
 app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
+// servir arquivos estáticos do frontend
+app.use(express.static('public'));
 
-// healthchecks
-app.get('/health', (_req, res) => res.json({ ok: true, db: 'unknown' }));
-app.get('/ready', async (_req, res) => {
-  try {
-    await sequelize.authenticate();
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: 'db down' });
-  }
-});
-
-// home
-app.get('/', (_req, res) => {
-  res.send(`
-    <h1>Stock Overflow API</h1>
-    <ul>
-      <li><a href="/health">/health</a></li>
-      <li><a href="/ready">/ready</a></li>
-      <li><a href="/produtos">/produtos</a></li>
-      <li><a href="/movimentacoes">/movimentacoes</a></li>
-      <li><a href="/relatorios/estoque">/relatorios/estoque</a></li>
-    </ul>
-  `);
-});
-
-// rotas
+// rotas da API
 app.use('/auth', authRouter);
 app.use('/produtos', productsRouter);
 app.use('/movimentacoes', movementsRouter);
 app.use('/relatorios', reportsRouter);
 
-// 404 + handler
-app.use(notFound);
-app.use(errorHandler);
+// rota raiz -> index.html
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.get('/', (_req, res) => {
+  res.sendFile(join(__dirname, '../public/index.html'));
+});
 
 export default app;
