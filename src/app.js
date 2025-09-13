@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
+app.use(express.static('public'));
+
 import productsRouter from './routes/products.js';
 import movementsRouter from './routes/movements.js';
 import reportsRouter from './routes/reports.js';
@@ -18,7 +20,7 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(express.static('public'));
+
 
 // healthchecks
 app.get('/health', (_req, res) => res.json({ ok: true, db: 'unknown' }));
