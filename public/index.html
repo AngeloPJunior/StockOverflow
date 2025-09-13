@@ -18,14 +18,10 @@
   </style>
 </head>
 <body>
-
   <header>
     <div>
       <h1 style="margin:0">Stock Overflow — HQs & Livros</h1>
-      <section id="resumo" style="margin-top:6px">
-        <strong>Resumo do Estoque</strong>
-        <div id="totais" class="muted">Carregando...</div>
-      </section>
+      <div id="totais" class="muted">Resumo do Estoque: carregando…</div>
     </div>
     <div>
       <a href="/health" target="_blank">/health</a>
@@ -46,16 +42,10 @@
     <form id="form-produto">
       <input name="titulo" placeholder="Título" required />
       <input name="autor"  placeholder="Autor" />
-      <input name="editora" placeholder="Editora" />
-      <input name="genero"  placeholder="Gênero" />
       <select name="tipo">
         <option value="HQ">HQ</option>
         <option value="LIVRO">LIVRO</option>
       </select>
-      <input name="idioma" placeholder="Idioma" />
-      <input name="ano" type="number" placeholder="Ano" />
-      <input name="edicao" placeholder="Edição" />
-      <input name="codigo" placeholder="Código/ISBN" />
       <input name="quantidade" type="number" placeholder="Qtd inicial" value="0" />
       <button>Salvar</button>
     </form>
@@ -79,7 +69,7 @@
       <thead>
         <tr><th>ID</th><th>Título</th><th>Autor</th><th>Tipo</th><th>Qtd</th></tr>
       </thead>
-      <tbody id="lista"></tbody>
+      <tbody id="lista"><tr><td colspan="5" class="muted">carregando…</td></tr></tbody>
     </table>
 
     <div id="paginacao" style="margin:8px 0">
@@ -89,200 +79,139 @@
     </div>
   </section>
 
-  <section>
-    <h2>Movimentação</h2>
-    <form id="form-mov">
-      <input name="produtoId" type="number" placeholder="ID do produto" required />
-      <select name="tipo">
-        <option value="ENTRADA">ENTRADA</option>
-        <option value="SAIDA">SAÍDA</option>
-      </select>
-      <input name="quantidade" type="number" placeholder="Quantidade" required />
-      <input name="observacao" placeholder="Observação" />
-      <button>Registrar</button>
-    </form>
-  </section>
-
   <script>
-    // ===== Estado global simples =====
+    // --------- estado ----------
     const state = {
-      page: 1, limit: 5, q: '', tipo: '',
+      page: 1, limit: 10, q: '', tipo: '',
       token: localStorage.getItem('token') || '',
       user: JSON.parse(localStorage.getItem('user') || 'null')
     };
 
-    // ===== Helper fetch com Authorization automático para mutações =====
-    async function api(path, opts = {}) {
-      const url = path.startsWith('/') ? path : `/${path}`;
-      const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-      const method = (opts.method || 'GET').toUpperCase();
-      if (state.token && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
-        headers.Authorization = `Bearer ${state.token}`;
-      }
-      const res = await fetch(url, { ...opts, headers });
-      return res;
+    // --------- helpers ----------
+    function setText(id, text){ const el = document.getElementById(id); if(el) el.textContent = text; }
+    function authHeaders(h={}) {
+      if (state.token) h.Authorization = `Bearer ${state.token}`;
+      return h;
     }
-
-    function refreshAuthUI() {
+    async function jsonFetch(url, opts={}) {
+      const r = await fetch(url, {
+        headers: { 'Content-Type':'application/json', ...(opts.headers||{}) },
+        ...opts
+      });
+      let data = null;
+      try { data = await r.json(); } catch { /* vazio */ }
+      if (!r.ok) throw new Error((data && (data.error||data.message)) || r.statusText);
+      return data;
+    }
+    function refreshAuthUI(){
       const form = document.getElementById('form-login');
-      const btnLogout = document.getElementById('btn-logout');
+      const out = document.getElementById('btn-logout');
       const info = document.getElementById('user-info');
       if (state.token && state.user) {
-        form.style.display = 'none';
-        btnLogout.style.display = 'inline-block';
-        info.textContent = `👤 ${state.user.nome}`;
+        form.style.display = 'none'; out.style.display='inline-block';
+        info.textContent = `👤 ${state.user.nome||state.user.email||'Usuário'}`;
       } else {
-        form.style.display = 'flex';
-        btnLogout.style.display = 'none';
-        info.textContent = '';
+        form.style.display = 'flex'; out.style.display='none'; info.textContent='';
       }
     }
 
-    // ===== Resumo (relatório) =====
-    async function carregarResumo() {
+    // --------- UI ----------
+    async function carregarResumo(){
       try {
-        const r = await fetch('/relatorios/estoque');
-        if (!r.ok) throw new Error('Falha no relatório');
-        const { HQs=0, Livros=0, Total=0 } = await r.json();
-        document.getElementById('totais').innerHTML =
-          `<strong>HQs:</strong> ${HQs} · <strong>Livros:</strong> ${Livros} · <strong>Total:</strong> ${Total}`;
-      } catch (e) {
-        document.getElementById('totais').textContent = 'Erro ao carregar resumo';
-        console.error(e);
-      }
+        const r = await fetch('/relatorios/estoque'); // se não existir, só ignora
+        if (!r.ok) throw 0;
+        const j = await r.json();
+        const HQs = j.HQs ?? 0, Livros = j.Livros ?? 0, Total = j.Total ?? (HQs+Livros);
+        setText('totais', `Resumo do Estoque: HQs ${HQs} · Livros ${Livros} · Total ${Total}`);
+      } catch { setText('totais', 'Resumo do Estoque: indisponível'); }
     }
 
-    // ===== Lista com paginação e filtros =====
-    async function carregar(q=''){
-      try {
-        state.q = q ?? state.q;
-        state.tipo = document.getElementById('filtro-tipo')?.value || '';
-
+    async function carregarLista(){
+      try{
         const qs = new URLSearchParams({
           q: state.q || '', tipo: state.tipo || '',
           page: String(state.page), limit: String(state.limit),
         });
-
-        const r = await api(`/produtos?${qs.toString()}`);
-        if (!r.ok) throw new Error('Falha ao buscar produtos');
-        const data = await r.json();
-        const items = Array.isArray(data) ? data : data.items || [];
-
-        document.getElementById('lista').innerHTML = items.map(p =>
-          `<tr><td>${p.id}</td><td>${p.titulo}</td><td>${p.autor||''}</td><td>${p.tipo}</td><td>${p.quantidade}</td></tr>`
-        ).join('');
-
-        const curr = data.page ?? state.page;
-        const pages = data.pages ?? 1;
-        document.getElementById('pageInfo').textContent = `Página ${curr} de ${pages}`;
-        document.getElementById('prev').disabled = curr <= 1;
-        document.getElementById('next').disabled = curr >= pages;
-
-        await carregarResumo();
-      } catch (e) {
+        const data = await jsonFetch(`/produtos?${qs}`);
+        const items = Array.isArray(data) ? data : (data.items || []);
+        document.getElementById('lista').innerHTML =
+          items.length
+            ? items.map(p => `<tr>
+                <td>${p.id}</td><td>${p.titulo}</td><td>${p.autor||''}</td>
+                <td>${p.tipo}</td><td>${p.quantidade}</td>
+              </tr>`).join('')
+            : `<tr><td colspan="5" class="muted">nenhum item</td></tr>`;
+        const curr = data.page ?? state.page, pages = data.pages ?? 1;
+        setText('pageInfo', `Página ${curr} de ${pages}`);
+        document.getElementById('prev').disabled = curr<=1;
+        document.getElementById('next').disabled = curr>=pages;
+      }catch(e){
         console.error(e);
         document.getElementById('lista').innerHTML =
-          `<tr><td colspan="5" class="muted">Erro ao carregar produtos</td></tr>`;
+          `<tr><td colspan="5" class="muted">erro ao carregar: ${e.message}</td></tr>`;
       }
     }
 
-    // ===== Bootstrapping =====
+    // --------- eventos ----------
     document.addEventListener('DOMContentLoaded', () => {
-      // LOGIN
-      document.getElementById('form-login').onsubmit = async (e) => {
+      // login
+      document.getElementById('form-login').onsubmit = async (e)=>{
         e.preventDefault();
         const email = document.getElementById('login-email').value.trim();
         const senha = document.getElementById('login-senha').value.trim();
-        if (!email || !senha) return alert('Informe email e senha');
-
-        try {
-          const r = await fetch('/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        if(!email||!senha) return alert('Informe email e senha');
+        try{
+          const j = await jsonFetch('/auth/login', {
+            method:'POST',
             body: JSON.stringify({ email, senha })
           });
-          const j = await r.json();
-          if (!r.ok) return alert(j.error || 'Falha no login');
-
-          state.token = j.token;
-          state.user = j.user;
+          state.token = j.token || '';
+          state.user  = j.user  || null;
           localStorage.setItem('token', state.token);
-          localStorage.setItem('user', JSON.stringify(state.user));
+          localStorage.setItem('user', JSON.stringify(state.user||{}));
           refreshAuthUI();
-          document.getElementById('login-email').value = '';
-          document.getElementById('login-senha').value = '';
-          alert('Login realizado!');
-        } catch (err) {
-          console.error(err);
-          alert('Erro de rede ao tentar logar.');
+          alert('Login OK');
+        }catch(err){
+          alert('Falha no login: ' + err.message);
         }
       };
-
-      // LOGOUT
-      document.getElementById('btn-logout').onclick = () => {
-        state.token = '';
-        state.user = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        refreshAuthUI();
-        alert('Você saiu da sessão.');
+      document.getElementById('btn-logout').onclick = ()=>{
+        state.token=''; state.user=null;
+        localStorage.removeItem('token'); localStorage.removeItem('user');
+        refreshAuthUI(); alert('Sessão encerrada');
       };
 
-      // Busca e filtros
-      document.getElementById('btn-buscar').onclick = () => {
-        state.page = 1;
-        carregar(document.getElementById('busca').value || '');
-      };
-      document.getElementById('filtro-tipo').onchange = () => { state.page = 1; carregar(); };
+      // filtros e paginação
+      document.getElementById('btn-buscar').onclick = ()=>{ state.page=1; state.q=document.getElementById('busca').value||''; carregarLista(); };
+      document.getElementById('filtro-tipo').onchange = ()=>{ state.page=1; state.tipo=document.getElementById('filtro-tipo').value||''; carregarLista(); };
+      document.getElementById('prev').onclick = ()=>{ if(state.page>1){ state.page--; carregarLista(); } };
+      document.getElementById('next').onclick = ()=>{ state.page++; carregarLista(); };
 
-      // Paginação
-      document.getElementById('prev').onclick = () => { if (state.page > 1) { state.page--; carregar(); } };
-      document.getElementById('next').onclick = () => { state.page++; carregar(); };
-
-      // Form novo produto (precisa login)
-      document.getElementById('form-produto').onsubmit = async (e) => {
+      // novo produto (requer token)
+      document.getElementById('form-produto').onsubmit = async (e)=>{
         e.preventDefault();
-        if (!state.token) return alert('Faça login para cadastrar produtos.');
+        if(!state.token) return alert('Faça login primeiro.');
         const f = new FormData(e.target);
         const body = Object.fromEntries(f.entries());
         body.quantidade = Number(body.quantidade||0);
-        try {
-          const r = await api('/produtos', { method:'POST', body: JSON.stringify(body) });
-          const j = await r.json();
-          if (!r.ok) return alert(j.error || 'Erro ao salvar');
+        try{
+          const j = await jsonFetch('/produtos', {
+            method:'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+          });
+          alert('Salvo: ' + (j.titulo||'produto'));
           e.target.reset();
-          state.page = 1;
-          carregar();
-        } catch (err) {
-          console.error(err);
-          alert('Erro de rede ao salvar produto.');
-        }
-      };
-
-      // Form movimentação (precisa login)
-      document.getElementById('form-mov').onsubmit = async (e) => {
-        e.preventDefault();
-        if (!state.token) return alert('Faça login para registrar movimentações.');
-        const f = new FormData(e.target);
-        const body = Object.fromEntries(f.entries());
-        body.produtoId = Number(body.produtoId);
-        body.quantidade = Number(body.quantidade);
-        try {
-          const r = await api('/movimentacoes', { method:'POST', body: JSON.stringify(body) });
-          const j = await r.json();
-          if(!r.ok){ alert(j.error||'Erro'); return; }
-          alert(`Mov ok. Saldo atual: ${j.saldoAtual}`);
-          e.target.reset();
-          carregar();
-        } catch (err) {
-          console.error(err);
-          alert('Erro de rede ao registrar movimentação.');
+          state.page=1; carregarLista();
+        }catch(err){
+          alert('Erro ao salvar: ' + err.message);
         }
       };
 
       // start
       refreshAuthUI();
-      carregar();
+      carregarResumo();  // não bloqueia a lista se falhar
+      carregarLista();
     });
   </script>
 </body>
