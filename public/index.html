@@ -5,6 +5,7 @@
   <title>Stock Overflow</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    :root { color-scheme: light dark; }
     body{font-family:system-ui,Arial;margin:24px;max-width:980px}
     header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}
     form, table{width:100%;margin:12px 0}
@@ -13,6 +14,7 @@
     th,td{border:1px solid #ddd;padding:8px}
     th{background:#f6f6f6}
     #auth{display:flex;gap:8px;align-items:center}
+    .muted{opacity:.75}
   </style>
 </head>
 <body>
@@ -22,7 +24,7 @@
       <h1 style="margin:0">Stock Overflow — HQs & Livros</h1>
       <section id="resumo" style="margin-top:6px">
         <strong>Resumo do Estoque</strong>
-        <div id="totais">Carregando...</div>
+        <div id="totais" class="muted">Carregando...</div>
       </section>
     </div>
     <div>
@@ -30,8 +32,8 @@
       <div id="auth">
         <span id="user-info" style="font-weight:600;"></span>
         <form id="form-login" style="display:flex;gap:6px;align-items:center;">
-          <input id="login-email"  type="email"  placeholder="email"  />
-          <input id="login-senha"  type="password" placeholder="senha" />
+          <input id="login-email"  type="email"  placeholder="email"  autocomplete="username"/>
+          <input id="login-senha"  type="password" placeholder="senha" autocomplete="current-password"/>
           <button id="btn-login"  type="submit">Login</button>
         </form>
         <button id="btn-logout" style="display:none;">Logout</button>
@@ -102,21 +104,23 @@
   </section>
 
   <script>
-    // estado global simples
+    // ===== Estado global simples =====
     const state = {
       page: 1, limit: 5, q: '', tipo: '',
       token: localStorage.getItem('token') || '',
       user: JSON.parse(localStorage.getItem('user') || 'null')
     };
 
-    // helper fetch com Authorization automático para mutações
-    function api(path, opts = {}) {
+    // ===== Helper fetch com Authorization automático para mutações =====
+    async function api(path, opts = {}) {
+      const url = path.startsWith('/') ? path : `/${path}`;
       const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
       const method = (opts.method || 'GET').toUpperCase();
       if (state.token && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
         headers.Authorization = `Bearer ${state.token}`;
       }
-      return fetch(path, { ...opts, headers });
+      const res = await fetch(url, { ...opts, headers });
+      return res;
     }
 
     function refreshAuthUI() {
@@ -134,6 +138,7 @@
       }
     }
 
+    // ===== Resumo (relatório) =====
     async function carregarResumo() {
       try {
         const r = await fetch('/relatorios/estoque');
@@ -147,32 +152,41 @@
       }
     }
 
+    // ===== Lista com paginação e filtros =====
     async function carregar(q=''){
-      state.q = q ?? state.q;
-      state.tipo = document.getElementById('filtro-tipo')?.value || '';
+      try {
+        state.q = q ?? state.q;
+        state.tipo = document.getElementById('filtro-tipo')?.value || '';
 
-      const qs = new URLSearchParams({
-        q: state.q || '', tipo: state.tipo || '',
-        page: String(state.page), limit: String(state.limit),
-      });
+        const qs = new URLSearchParams({
+          q: state.q || '', tipo: state.tipo || '',
+          page: String(state.page), limit: String(state.limit),
+        });
 
-      const r = await api(`/produtos?${qs.toString()}`);
-      const data = await r.json();
-      const items = Array.isArray(data) ? data : data.items || [];
+        const r = await api(`/produtos?${qs.toString()}`);
+        if (!r.ok) throw new Error('Falha ao buscar produtos');
+        const data = await r.json();
+        const items = Array.isArray(data) ? data : data.items || [];
 
-      document.getElementById('lista').innerHTML = items.map(p =>
-        `<tr><td>${p.id}</td><td>${p.titulo}</td><td>${p.autor||''}</td><td>${p.tipo}</td><td>${p.quantidade}</td></tr>`
-      ).join('');
+        document.getElementById('lista').innerHTML = items.map(p =>
+          `<tr><td>${p.id}</td><td>${p.titulo}</td><td>${p.autor||''}</td><td>${p.tipo}</td><td>${p.quantidade}</td></tr>`
+        ).join('');
 
-      const curr = data.page ?? state.page;
-      const pages = data.pages ?? 1;
-      document.getElementById('pageInfo').textContent = `Página ${curr} de ${pages}`;
-      document.getElementById('prev').disabled = curr <= 1;
-      document.getElementById('next').disabled = curr >= pages;
+        const curr = data.page ?? state.page;
+        const pages = data.pages ?? 1;
+        document.getElementById('pageInfo').textContent = `Página ${curr} de ${pages}`;
+        document.getElementById('prev').disabled = curr <= 1;
+        document.getElementById('next').disabled = curr >= pages;
 
-      await carregarResumo();
+        await carregarResumo();
+      } catch (e) {
+        console.error(e);
+        document.getElementById('lista').innerHTML =
+          `<tr><td colspan="5" class="muted">Erro ao carregar produtos</td></tr>`;
+      }
     }
 
+    // ===== Bootstrapping =====
     document.addEventListener('DOMContentLoaded', () => {
       // LOGIN
       document.getElementById('form-login').onsubmit = async (e) => {
@@ -181,22 +195,27 @@
         const senha = document.getElementById('login-senha').value.trim();
         if (!email || !senha) return alert('Informe email e senha');
 
-        const r = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, senha })
-        });
-        const j = await r.json();
-        if (!r.ok) return alert(j.error || 'Falha no login');
+        try {
+          const r = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, senha })
+          });
+          const j = await r.json();
+          if (!r.ok) return alert(j.error || 'Falha no login');
 
-        state.token = j.token;
-        state.user = j.user;
-        localStorage.setItem('token', state.token);
-        localStorage.setItem('user', JSON.stringify(state.user));
-        refreshAuthUI();
-        document.getElementById('login-email').value = '';
-        document.getElementById('login-senha').value = '';
-        alert('Login realizado!');
+          state.token = j.token;
+          state.user = j.user;
+          localStorage.setItem('token', state.token);
+          localStorage.setItem('user', JSON.stringify(state.user));
+          refreshAuthUI();
+          document.getElementById('login-email').value = '';
+          document.getElementById('login-senha').value = '';
+          alert('Login realizado!');
+        } catch (err) {
+          console.error(err);
+          alert('Erro de rede ao tentar logar.');
+        }
       };
 
       // LOGOUT
@@ -227,12 +246,17 @@
         const f = new FormData(e.target);
         const body = Object.fromEntries(f.entries());
         body.quantidade = Number(body.quantidade||0);
-        const r = await api('/produtos', { method:'POST', body: JSON.stringify(body) });
-        const j = await r.json();
-        if (!r.ok) return alert(j.error || 'Erro ao salvar');
-        e.target.reset();
-        state.page = 1;
-        carregar();
+        try {
+          const r = await api('/produtos', { method:'POST', body: JSON.stringify(body) });
+          const j = await r.json();
+          if (!r.ok) return alert(j.error || 'Erro ao salvar');
+          e.target.reset();
+          state.page = 1;
+          carregar();
+        } catch (err) {
+          console.error(err);
+          alert('Erro de rede ao salvar produto.');
+        }
       };
 
       // Form movimentação (precisa login)
@@ -243,12 +267,17 @@
         const body = Object.fromEntries(f.entries());
         body.produtoId = Number(body.produtoId);
         body.quantidade = Number(body.quantidade);
-        const r = await api('/movimentacoes', { method:'POST', body: JSON.stringify(body) });
-        const j = await r.json();
-        if(!r.ok){ alert(j.error||'Erro'); return; }
-        alert(`Mov ok. Saldo atual: ${j.saldoAtual}`);
-        e.target.reset();
-        carregar();
+        try {
+          const r = await api('/movimentacoes', { method:'POST', body: JSON.stringify(body) });
+          const j = await r.json();
+          if(!r.ok){ alert(j.error||'Erro'); return; }
+          alert(`Mov ok. Saldo atual: ${j.saldoAtual}`);
+          e.target.reset();
+          carregar();
+        } catch (err) {
+          console.error(err);
+          alert('Erro de rede ao registrar movimentação.');
+        }
       };
 
       // start
